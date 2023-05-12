@@ -2,7 +2,7 @@
 
 public class BTree {
     private int t;
-    private BTreeNode root;
+    BTreeNode root;
 
     public BTree(int t) {
         this.t = t;
@@ -50,6 +50,20 @@ public class BTree {
             root.print();
         }
     }
+    
+    public boolean search(FunkoPop key) {
+        if (root != null) {
+            return root.search(key);
+        }
+        return false;
+    }
+
+    public FunkoPop retrieve(FunkoPop key) {
+        if (root != null) {
+            return root.retrieve(key);
+        }
+        return null;
+    }
 
     private class BTreeNode {
         private int t;
@@ -73,25 +87,21 @@ public class BTree {
             }
             if (i < numKeys && keys[i].compareTo(item) == 0) {
                 if (leaf) {
-                    // Case 1: The key is in a leaf node
                     for (int j = i; j < numKeys-1; j++) {
                         keys[j] = keys[j+1];
                     }
                     numKeys--;
                 } else {
-                    // Case 2: The key is in a non-leaf node
                     FunkoPop pred = getPredecessor(i);
                     keys[i] = pred;
                     children[i].delete(pred);
                 }
             } else {
                 if (leaf) {
-                    // Case 3: The key is not in the tree
                     return;
                 }
                 boolean flag = (i == numKeys);
                 if (children[i].numKeys < t) {
-                    // Case 4a: The key is in a non-leaf node and its child has fewer than t keys
                     fill(i);
                 }
                 if (flag && i > numKeys) {
@@ -104,13 +114,10 @@ public class BTree {
         
         private void fill(int i) {
             if (i > 0 && children[i-1].numKeys >= t) {
-                // Case 4b: Borrow from the left sibling
                 borrowFromLeft(i);
             } else if (i < numKeys && children[i+1].numKeys >= t) {
-                // Case 4b: Borrow from the right sibling
                 borrowFromRight(i);
             } else {
-                // Case 4c: Merge with a sibling
                 merge(i);
             }
         }
@@ -176,8 +183,40 @@ public class BTree {
             child.numKeys += sibling.numKeys+1;
             numKeys--;
         }
-
         
+        
+        
+        public boolean search(FunkoPop key) {
+            int i = 0;
+            while (i < numKeys && key.compareTo(keys[i]) > 0) {
+                i++;
+            }
+
+            if (i < numKeys && key.compareTo(keys[i]) == 0) {
+                return true;
+            } else if (leaf) {
+                return false;
+            } else {
+                return children[i].search(key);
+            }
+        }
+
+        public FunkoPop retrieve(FunkoPop key) {
+            int i = 0;
+            while (i < numKeys && key.compareTo(keys[i]) > 0) {
+                i++;
+            }
+
+            if (i < numKeys && key.compareTo(keys[i]) == 0) {
+                return keys[i];
+            } else if (leaf) {
+                return null;
+            } else {
+                return children[i].retrieve(key);
+            }
+        }
+       
+      
         private FunkoPop getPredecessor(int i) {
             BTreeNode curr = children[i];
             while (!curr.leaf) {

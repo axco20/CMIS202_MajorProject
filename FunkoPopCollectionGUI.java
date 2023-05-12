@@ -36,6 +36,7 @@ public class FunkoPopCollectionGUI extends JFrame {
 	private JTextField priceField;
 	private JTextField imagePathField;
 	private Stack<FunkoPop> undoStack;
+	private Stack<FunkoPop> redoStack;
 	private Map<String, FunkoPop> itemMap;
 	private HashSet<FunkoPop> itemSet;
 	private BTree btree;
@@ -60,6 +61,7 @@ public class FunkoPopCollectionGUI extends JFrame {
 		createForm();
 		createButtons();
 		undoStack = new Stack<>();
+		redoStack = new Stack<>();
 		itemMap = new HashMap<>();
 		itemSet = new HashSet<>();
 		for (FunkoPop item : collection.getItems()) {
@@ -106,153 +108,262 @@ public class FunkoPopCollectionGUI extends JFrame {
 
 	private void createButtons() {
 		JPanel buttonPanel = new JPanel(new FlowLayout());
+		
+		//ADD ITEM BUTTON
 		JButton addButton = new JButton("Add item");
 		addButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				try {
-					String name = nameField.getText();
-					String series = seriesField.getText();
-					double price = Double.parseDouble(priceField.getText());
-					int imagePath = Integer.parseInt(imagePathField.getText());
+				
+				Runnable task = new Runnable() {
+					public void run() {
+						try {
+							String name = nameField.getText();
+							String series = seriesField.getText();
+							double price = Double.parseDouble(priceField.getText());
+							int imagePath = Integer.parseInt(imagePathField.getText());
 
-					FunkoPop item = new FunkoPop(name, series, price, imagePath);
-					collection.addItem(item);
-					model.addRow(new Object[] { item.getName(), item.getSeries(), item.getPrice(), item.getIndex() });
-					itemMap.put(name+series, item);
-	                undoStack.push(item);
-	                itemSet.add(item);
-	    			btree.insert(item);
-					clearForm();
-				} catch (NumberFormatException ex) {
-					JOptionPane.showMessageDialog(null, "Invalid price");
-				}
+							FunkoPop item = new FunkoPop(name, series, price, imagePath);
+							collection.addItem(item);
+							model.addRow(new Object[] { item.getName(), item.getSeries(), item.getPrice(), item.getIndex() });
+							itemMap.put(name+series, item);
+			                undoStack.push(item);
+			                redoStack.push(item);
+			                itemSet.add(item);
+			    			btree.insert(item);
+							clearForm();
+						} catch (NumberFormatException ex) {
+							JOptionPane.showMessageDialog(null, "Invalid price");
+						}
+					}
+				};
+				
+				executeTaskInThread(task);
 			}
 		});
 		buttonPanel.add(addButton);
+		
+		//REMOVE ITEM BUTTON
 		JButton removeButton = new JButton("Remove selected item");
 		removeButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				int selectedRow = table.getSelectedRow();
-				if (selectedRow == -1) {
-					JOptionPane.showMessageDialog(null, "Please select an item to remove");
-					return;
-				}
-				String name = (String) model.getValueAt(selectedRow, 0);
-				String series = (String) model.getValueAt(selectedRow, 1);
-				double price = (Double) model.getValueAt(selectedRow, 2);
-				FunkoPop itemToRemove = null;
-				for (FunkoPop item : collection.getItems()) {
-					if (item.getName().equals(name) && item.getSeries().equals(series) && item.getPrice() == price) {
-						itemToRemove = item;
-						break;
+				
+				Runnable task = new Runnable() {
+					public void run() {
+						int selectedRow = table.getSelectedRow();
+						if (selectedRow == -1) {
+							JOptionPane.showMessageDialog(null, "Please select an item to remove");
+							return;
+						}
+						String name = (String) model.getValueAt(selectedRow, 0);
+						String series = (String) model.getValueAt(selectedRow, 1);
+						double price = (Double) model.getValueAt(selectedRow, 2);
+						FunkoPop itemToRemove = null;
+						for (FunkoPop item : collection.getItems()) {
+							if (item.getName().equals(name) && item.getSeries().equals(series) && item.getPrice() == price) {
+								itemToRemove = item;
+								break;
+							}
+						}
+						if (itemToRemove != null) {
+							collection.removeItem(itemToRemove);
+							model.removeRow(selectedRow);
+							
+						}
+						
 					}
-				}
-				if (itemToRemove != null) {
-					collection.removeItem(itemToRemove);
-					model.removeRow(selectedRow);
-					
-				}
+				};
+				
+				executeTaskInThread(task);
 			}
 		});
+		
 		buttonPanel.add(removeButton);
+		
+		//SORT ITEM BUTTON
 		JButton sortButton = new JButton("Sort");
 		sortButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				collection.sortItems();
-				model.setRowCount(0);
-				for (FunkoPop item : collection.getItems()) {
-					model.addRow(new Object[] { item.getName(), item.getSeries(), item.getPrice(), item.getIndex() });
-				}
+				Runnable task = new Runnable() {
+					public void run() {
+						collection.sortItems();
+						model.setRowCount(0);
+						for (FunkoPop item : collection.getItems()) {
+							model.addRow(new Object[] { item.getName(), item.getSeries(), item.getPrice(), item.getIndex() });
+						}
+					}
+				};
+				executeTaskInThread(task);
 			}
 		});
 		buttonPanel.add(sortButton);
+		
+		//SAVE COLLECTION BUTTON
 		JButton saveButton = new JButton("Save collection");
 		saveButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				try {
-					FileOutputStream fos = new FileOutputStream("collection.txt");
-					ObjectOutputStream oos = new ObjectOutputStream(fos);
-					oos.writeObject(new ArrayList<FunkoPop>(collection.getItems()));
-					oos.close();
-					JOptionPane.showMessageDialog(null, "Collection saved to file");
-				} catch (Exception ex) {
-					JOptionPane.showMessageDialog(null, "Error saving collection to file");
-				}
+				Runnable task = new Runnable() {
+					public void run() {
+						try {
+							FileOutputStream fos = new FileOutputStream("collection.txt");
+							ObjectOutputStream oos = new ObjectOutputStream(fos);
+							oos.writeObject(new ArrayList<FunkoPop>(collection.getItems()));
+							oos.close();
+							JOptionPane.showMessageDialog(null, "Collection saved to file");
+						} catch (Exception ex) {
+							JOptionPane.showMessageDialog(null, "Error saving collection to file");
+						}
+					}
+				};
+				executeTaskInThread(task);
 			}
 		});
 		buttonPanel.add(saveButton);
 		add(buttonPanel, BorderLayout.SOUTH);
+		
+		//UNDO BUTTON
 		JButton undoButton = new JButton("Undo");
 		undoButton.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				if (!undoStack.empty()) {
-					FunkoPop item = undoStack.pop();
-					collection.removeItem(item);
-					model.removeRow(findIndex(item));
-					itemMap.remove(item.getName() + item.getSeries());
-					itemSet.remove(item);
-					btree.delete(item);
-				} else {
-					JOptionPane.showMessageDialog(null, "No action to undo");
-				}
+				Runnable task = new Runnable() {
+					public void run() {
+						if (!undoStack.empty()) {
+							FunkoPop item = undoStack.pop();
+							collection.removeItem(item);
+							model.removeRow(findIndex(item));
+							itemMap.remove(item.getName() + item.getSeries());
+							itemSet.remove(item);
+							btree.delete(item);
+						} else {
+							JOptionPane.showMessageDialog(null, "No action to undo");
+						}
+					}
+				};
+				executeTaskInThread(task);
 			}
 		});
 		buttonPanel.add(undoButton);
 		add(buttonPanel, BorderLayout.SOUTH);
+		
+		//REDO BUTTON
+		JButton redoButton = new JButton("Redo");
+		redoButton.addActionListener(new ActionListener() {
+		    @Override
+		    public void actionPerformed(ActionEvent e) {
+		        Runnable task = new Runnable() {
+		            public void run() {
+		                if (!redoStack.empty()) {
+		                    FunkoPop item = redoStack.pop();
+		                    collection.addItem(item);
+		                    model.addRow(new Object[] { item.getName(), item.getSeries(), item.getPrice(), item.getIndex() });
+		                    itemMap.put(item.getName() + item.getSeries(), item);
+		                    itemSet.add(item);
+		                    btree.insert(item);
+		                } else {
+		                    JOptionPane.showMessageDialog(null, "No action to redo");
+		                }
+		            }
+		        };
+		        executeTaskInThread(task);
+		    }
+		});
+		buttonPanel.add(redoButton);
+		
+		//SEARCH USING HASHMAP BUTTON
 		JButton lookupButton = new JButton("search: HashMap");
 	    lookupButton.addActionListener(new ActionListener() {
 	        @Override
 	        public void actionPerformed(ActionEvent e) {
-	            // Get the name and series from the user input
-	            String name = JOptionPane.showInputDialog("Enter the name of the item:");
-	            String series = JOptionPane.showInputDialog("Enter the series of the item:");
-	            String key = name + series;
-	            
-	            // Look up the pop in the itemMap HashMap
-	            FunkoPop pop = itemMap.get(key);
-	            
-	            // Display the pop's information in a message dialog
-	            if (pop != null) {
-	                String message = "Name: " + pop.getName() + "\nSeries: " + pop.getSeries() + "\nPrice: " + pop.getPrice() + "\nSerial Number: " + pop.getIndex();
-	                JOptionPane.showMessageDialog(null, message);
-	            } else {
-	                JOptionPane.showMessageDialog(null, "Pop not found.");
-	            }
+	        	
+	        	Runnable task = new Runnable() {
+	        		public void run() {
+	        			String name = JOptionPane.showInputDialog("Enter the name of the item:");
+	    	            String series = JOptionPane.showInputDialog("Enter the series of the item:");
+	    	            String key = name + series;
+	    	            
+	    	            FunkoPop pop = itemMap.get(key);
+	    	            
+	    	            if (pop != null) {
+	    	                String message = "Name: " + pop.getName() + "\nSeries: " + pop.getSeries() + "\nPrice: " + pop.getPrice() + "\nSerial Number: " + pop.getIndex();
+	    	                JOptionPane.showMessageDialog(null, message);
+	    	            } else {
+	    	                JOptionPane.showMessageDialog(null, "Pop not found.");
+	    	            }
+	        		}
+	        	};
+	            executeTaskInThread(task);
 	        }
 	    });
 	    buttonPanel.add(lookupButton);
 	    add(buttonPanel, BorderLayout.SOUTH);
+	    
+	    //SEARCH USING HASHSET BUTTON
 	    JButton searchButton = new JButton("search: HashSet");
 	    searchButton.addActionListener(new ActionListener() {
 	        @Override
 	        public void actionPerformed(ActionEvent e) {
-	            String name = JOptionPane.showInputDialog("Enter name of Funko Pop to search:");
-	            String series = JOptionPane.showInputDialog("Enter series of Funko Pop to search:");
-	            String price = JOptionPane.showInputDialog("What is the price of the pop: ");
-	            String ID = JOptionPane.showInputDialog("What is the ID number of the pop: ");
-	            
-	            
-	            FunkoPop item = new FunkoPop(name, series,Double.parseDouble(price) , Integer.parseInt(ID));
-	            if (!itemSet.contains(item)) {
-	                JOptionPane.showMessageDialog(null, "Funko Pop not found!");
-	            } else {
-	                for (FunkoPop fp : itemSet) {
-	                    if (fp.equals(item)) {
-	                        JOptionPane.showMessageDialog(null,
-	                                "Name: " + fp.getName() + "\nSeries: " + fp.getSeries() + "\nPrice: " + fp.getPrice()
-	                                        + "\nSerial Number: " + fp.getIndex());
-	                        break;
-	                    }
-	                }
-	            }
+	        	
+	        	Runnable task = new Runnable() {
+	        		public void run() {
+	        			String name = JOptionPane.showInputDialog("Enter name of Funko Pop to search:");
+	    	            String series = JOptionPane.showInputDialog("Enter series of Funko Pop to search:");
+	    	            String price = JOptionPane.showInputDialog("What is the price of the pop: ");
+	    	            String ID = JOptionPane.showInputDialog("What is the ID number of the pop: ");
+	    	            
+	    	            
+	    	            FunkoPop item = new FunkoPop(name, series,Double.parseDouble(price) , Integer.parseInt(ID));
+	    	            if (!itemSet.contains(item)) {
+	    	                JOptionPane.showMessageDialog(null, "Funko Pop not found!");
+	    	            } else {
+	    	                for (FunkoPop fp : itemSet) {
+	    	                    if (fp.equals(item)) {
+	    	                        JOptionPane.showMessageDialog(null,
+	    	                                "Name: " + fp.getName() + "\nSeries: " + fp.getSeries() + "\nPrice: " + fp.getPrice()
+	    	                                        + "\nSerial Number: " + fp.getIndex());
+	    	                        break;
+	    	                    }
+	    	                }
+	    	            }
+	        		}
+	        	};
+	            executeTaskInThread(task);
 	        }
 	    });
 	    buttonPanel.add(searchButton);
+	    
+	    JButton searchButton2 = new JButton("search: B-tree");
+	    searchButton2.addActionListener(new ActionListener() {
+	        @Override
+	        public void actionPerformed(ActionEvent e) {
+	            Runnable task = new Runnable() {
+	                public void run() {
+	                    String name = JOptionPane.showInputDialog("Enter name of Funko Pop to search:");
+	                    String series = JOptionPane.showInputDialog("Enter series of Funko Pop to search:");
+	                    String price = JOptionPane.showInputDialog("What is the price of the pop: ");
+	                    String ID = JOptionPane.showInputDialog("What is the ID number of the pop: ");
+
+	                    FunkoPop item = new FunkoPop(name, series, Double.parseDouble(price), Integer.parseInt(ID));
+	                    boolean found = btree.search(item);
+
+	                    if (!found) {
+	                        JOptionPane.showMessageDialog(null, "Funko Pop not found!");
+	                    } else {
+	                        FunkoPop foundItem = btree.retrieve(item);
+	                        JOptionPane.showMessageDialog(null,
+	                                "Name: " + foundItem.getName() + "\nSeries: " + foundItem.getSeries() + "\nPrice: " + foundItem.getPrice()
+	                                        + "\nSerial Number: " + foundItem.getIndex());
+	                    }
+	                }
+	            };
+	            executeTaskInThread(task);
+	        }
+	    });
+	    buttonPanel.add(searchButton2);
+
 
 	}
 
@@ -270,6 +381,11 @@ public class FunkoPopCollectionGUI extends JFrame {
 		seriesField.setText("");
 		priceField.setText("");
 		imagePathField.setText("");
+	}
+	
+	private void executeTaskInThread(Runnable task) {
+		Thread thread = new Thread(task);
+		thread.start();
 	}
 
 	public static void main(String[] args) {
